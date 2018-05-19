@@ -122,3 +122,4 @@ Uses [stb_image](http://nothings.org) for image loading.
 
 * Flipped y-axis so that origin is at lower left of window. All coordinate systems are right-handed now, to make it easier for working with CAD and analytical geometry.
 * Added a circular arc primitive so that circular segments are no longer drawn using approximating Bezier curves.
+* Added a cubic NURBS primitive so that general cubic NURBS may be rendered with a little pre-processing.
