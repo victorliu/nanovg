@@ -52,9 +52,10 @@
 enum NVGcommands {
 	NVG_MOVETO = 0,
 	NVG_LINETO = 1,
-	NVG_BEZIERTO = 2,
-	NVG_CLOSE = 3,
-	NVG_WINDING = 4,
+	NVG_ARCTO = 2,
+	NVG_BEZIERTO = 3,
+	NVG_CLOSE = 4,
+	NVG_WINDING = 5,
 };
 
 enum NVGpointFlags
@@ -1101,6 +1102,10 @@ static void nvg__appendCommands(NVGcontext* ctx, float* vals, int nvals)
 			nvgTransformPoint(&vals[i+1],&vals[i+2], state->xform, vals[i+1],vals[i+2]);
 			i += 3;
 			break;
+		case NVG_ARCTO:
+			nvgTransformPoint(&vals[i+1],&vals[i+2], state->xform, vals[i+1],vals[i+2]);
+			i += 4;
+			break;
 		case NVG_BEZIERTO:
 			nvgTransformPoint(&vals[i+1],&vals[i+2], state->xform, vals[i+1],vals[i+2]);
 			nvgTransformPoint(&vals[i+3],&vals[i+4], state->xform, vals[i+3],vals[i+4]);
@@ -1318,6 +1323,43 @@ static void nvg__tesselateBezier(NVGcontext* ctx,
 	nvg__tesselateBezier(ctx, x1234,y1234, x234,y234, x34,y34, x4,y4, level+1, type);
 }
 
+static void nvg__tesselateArc(NVGcontext* ctx,
+							  float x1, float y1, float x2, float y2,
+							  float g,
+							  int level, int type)
+{
+	float xm, ym, ga, g2;
+
+	ga = nvg__absf(g);
+	if (level > 10 || ga < 0.02f) {
+		nvg__addPoint(ctx, x2, y2, type);
+		return;
+	}
+
+	// Subdivide the arc at the midpoint
+	xm = 0.5f*((x1+x2) + g*(y2-y1));
+	ym = 0.5f*((y1+y2) - g*(x2-x1));
+	
+	// Solve for g2 in:
+	//   g*g2^2 + 2*g2 - g == 0
+	if (ga < 1) {
+		g2 = g / (1.f + nvg__sqrtf(1.f + g*g));
+	} else {
+		float r = 1.f / g;
+		if (g > 0) {
+			g2 = 1.f / (r + nvg__sqrtf(1.f + r*r));
+		} else {
+			g2 = 1.f / (r - nvg__sqrtf(1.f + r*r));
+		}
+	}
+	// Of the two roots, the one with the same sign as g should be used.
+	if ( (g > 0 && g2 < 0) || (g < 0 && g2 > 0) ) {
+		g2 = -1.f / g2;
+	}
+	nvg__tesselateArc(ctx, x1,y1, xm,ym, g2, level+1, type);
+	nvg__tesselateArc(ctx, xm,ym, x2,y2, g2, level+1, type);
+}
+
 static void nvg__flattenPaths(NVGcontext* ctx)
 {
 	NVGpathCache* cache = ctx->cache;
@@ -1351,6 +1393,14 @@ static void nvg__flattenPaths(NVGcontext* ctx)
 			p = &ctx->commands[i+1];
 			nvg__addPoint(ctx, p[0], p[1], NVG_PT_CORNER);
 			i += 3;
+			break;
+		case NVG_ARCTO:
+			last = nvg__lastPoint(ctx);
+			if (last != NULL) {
+				p = &ctx->commands[i+1];
+				nvg__tesselateArc(ctx, last->x,last->y, p[0],p[1], ctx->commands[i+3], 0, NVG_PT_CORNER);
+			}
+			i += 4;
 			break;
 		case NVG_BEZIERTO:
 			last = nvg__lastPoint(ctx);
@@ -1984,6 +2034,12 @@ void nvgLineTo(NVGcontext* ctx, float x, float y)
 void nvgBezierTo(NVGcontext* ctx, float c1x, float c1y, float c2x, float c2y, float x, float y)
 {
 	float vals[] = { NVG_BEZIERTO, c1x, c1y, c2x, c2y, x, y };
+	nvg__appendCommands(ctx, vals, NVG_COUNTOF(vals));
+}
+
+void nvgArcBulgeTo(NVGcontext* ctx, float bx, float by, float g)
+{
+	float vals[] = { NVG_ARCTO, bx, by, g };
 	nvg__appendCommands(ctx, vals, NVG_COUNTOF(vals));
 }
 

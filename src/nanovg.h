@@ -467,6 +467,12 @@ void nvgMoveTo(NVGcontext* ctx, float x, float y);
 // Adds line segment from the last point in the path to the specified point.
 void nvgLineTo(NVGcontext* ctx, float x, float y);
 
+// Creates a new circular arc from current point to bx,by, with bulge factor g.
+// The bulge factor is the ratio of the maximum deviation of the arc from the chord
+// to the half-length of the chord, with positive values meaning the arc is to the right
+// of the chord.
+void nvgArcBulgeTo(NVGcontext* ctx, float bx, float by, float g);
+
 // Adds cubic bezier segment from last point in the path via two control points to the specified point.
 void nvgBezierTo(NVGcontext* ctx, float c1x, float c1y, float c2x, float c2y, float x, float y);
 
