@@ -2247,7 +2247,13 @@ void nvgEllipse(NVGcontext* ctx, float cx, float cy, float rx, float ry)
 
 void nvgCircle(NVGcontext* ctx, float cx, float cy, float r)
 {
-	nvgEllipse(ctx, cx,cy, r,r);
+	float vals[] = {
+		NVG_MOVETO, cx+r, cy,
+		NVG_ARCTO, cx-r, cy, 1.f,
+		NVG_ARCTO, cx+r, cy, 1.f,
+		NVG_CLOSE
+	};
+	nvg__appendCommands(ctx, vals, NVG_COUNTOF(vals));
 }
 
 void nvgDebugDumpPathCache(NVGcontext* ctx)
