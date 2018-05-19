@@ -54,8 +54,9 @@ enum NVGcommands {
 	NVG_LINETO = 1,
 	NVG_ARCTO = 2,
 	NVG_BEZIERTO = 3,
-	NVG_CLOSE = 4,
-	NVG_WINDING = 5,
+	NVG_CNURBSTO = 4,
+	NVG_CLOSE = 5,
+	NVG_WINDING = 6,
 };
 
 enum NVGpointFlags
@@ -1112,6 +1113,12 @@ static void nvg__appendCommands(NVGcontext* ctx, float* vals, int nvals)
 			nvgTransformPoint(&vals[i+5],&vals[i+6], state->xform, vals[i+5],vals[i+6]);
 			i += 7;
 			break;
+		case NVG_CNURBSTO:
+			nvgTransformPoint(&vals[i+1],&vals[i+2], state->xform, vals[i+1],vals[i+2]);
+			nvgTransformPoint(&vals[i+3],&vals[i+4], state->xform, vals[i+3],vals[i+4]);
+			nvgTransformPoint(&vals[i+5],&vals[i+6], state->xform, vals[i+5],vals[i+6]);
+			i += 11;
+			break;
 		case NVG_CLOSE:
 			i++;
 			break;
@@ -1339,7 +1346,7 @@ static void nvg__tesselateArc(NVGcontext* ctx,
 	// Subdivide the arc at the midpoint
 	xm = 0.5f*((x1+x2) + g*(y2-y1));
 	ym = 0.5f*((y1+y2) - g*(x2-x1));
-	
+
 	// Solve for g2 in:
 	//   g*g2^2 + 2*g2 - g == 0
 	if (ga < 1) {
@@ -1358,6 +1365,57 @@ static void nvg__tesselateArc(NVGcontext* ctx,
 	}
 	nvg__tesselateArc(ctx, x1,y1, xm,ym, g2, level+1, type);
 	nvg__tesselateArc(ctx, xm,ym, x2,y2, g2, level+1, type);
+}
+
+static void nvg__tesselateCubicNURBS(NVGcontext* ctx,
+								 float x1, float y1, float x2, float y2,
+								 float x3, float y3, float x4, float y4,
+								 float w1, float w2, float w3, float w4,
+								 int level, int type)
+{
+	float x12,y12,x23,y23,x34,y34,x123,y123,x234,y234,x1234,y1234;
+	float w12,w23,w34,w123,w234,w1234;
+	float dx,dy,d2,d3;
+
+	if (level > 10) return;
+
+	dx = x4 - x1;
+	dy = y4 - y1;
+	d2 = nvg__absf(((x2 - x4) * dy - (y2 - y4) * dx));
+	d3 = nvg__absf(((x3 - x4) * dy - (y3 - y4) * dx));
+
+	if ((d2 + d3)*(d2 + d3) < ctx->tessTol * (dx*dx + dy*dy)) {
+		nvg__addPoint(ctx, x4, y4, type);
+		return;
+	}
+
+	x12 = (w1*x1+w2*x2)*0.5f;
+	y12 = (w1*y1+w2*y2)*0.5f;
+	x23 = (w2*x2+w3*x3)*0.5f;
+	y23 = (w2*y2+w3*y3)*0.5f;
+	x34 = (w3*x3+w4*x4)*0.5f;
+	y34 = (w3*y3+w4*y4)*0.5f;
+
+	w12 = (w1+w2)*0.5f;
+	w23 = (w2+w3)*0.5f;
+	w34 = (w3+w4)*0.5f;
+
+	x123 = (x12+x23)*0.5f;
+	y123 = (y12+y23)*0.5f;
+	x234 = (x23+x34)*0.5f;
+	y234 = (y23+y34)*0.5f;
+
+	w123 = (w12+w23)*0.5f;
+	w234 = (w23+w34)*0.5f;
+
+	x1234 = (x123+x234)*0.5f;
+	y1234 = (y123+y234)*0.5f;
+	w1234 = (w123+w234)*0.5f;
+	x1234 /= w1234;
+	y1234 /= w1234;
+
+	nvg__tesselateCubicNURBS(ctx, x1,y1, x12/w12,y12/w12, x123/w123,y123/w123, x1234,y1234, w1, w12, w123, w1234, level+1, 0);
+	nvg__tesselateCubicNURBS(ctx, x1234,y1234, x234/w234,y234/w234, x34/w34,y34/w34, x4,y4, w1234, w234, w34, w4, level+1, type);
 }
 
 static void nvg__flattenPaths(NVGcontext* ctx)
@@ -1411,6 +1469,20 @@ static void nvg__flattenPaths(NVGcontext* ctx)
 				nvg__tesselateBezier(ctx, last->x,last->y, cp1[0],cp1[1], cp2[0],cp2[1], p[0],p[1], 0, NVG_PT_CORNER);
 			}
 			i += 7;
+			break;
+		case NVG_CNURBSTO:
+			last = nvg__lastPoint(ctx);
+			if (last != NULL) {
+				float w0 = ctx->commands[i+ 7];
+				float w1 = ctx->commands[i+ 8];
+				float w2 = ctx->commands[i+ 9];
+				float w3 = ctx->commands[i+10];
+				cp1 = &ctx->commands[i+1];
+				cp2 = &ctx->commands[i+3];
+				p = &ctx->commands[i+5];
+				nvg__tesselateCubicNURBS(ctx, last->x,last->y, cp1[0],cp1[1], cp2[0],cp2[1], p[0],p[1], w0, w1, w2, w3, 0, NVG_PT_CORNER);
+			}
+			i += 11;
 			break;
 		case NVG_CLOSE:
 			nvg__closePath(ctx);
@@ -2034,6 +2106,12 @@ void nvgLineTo(NVGcontext* ctx, float x, float y)
 void nvgBezierTo(NVGcontext* ctx, float c1x, float c1y, float c2x, float c2y, float x, float y)
 {
 	float vals[] = { NVG_BEZIERTO, c1x, c1y, c2x, c2y, x, y };
+	nvg__appendCommands(ctx, vals, NVG_COUNTOF(vals));
+}
+
+void nvgCubicNurbsTo(NVGcontext* ctx, float c1x, float c1y, float c2x, float c2y, float x, float y, float w0, float w1, float w2, float w3)
+{
+	float vals[] = { NVG_CNURBSTO, c1x, c1y, c2x, c2y, x, y, w0, w1, w2, w3 };
 	nvg__appendCommands(ctx, vals, NVG_COUNTOF(vals));
 }
 

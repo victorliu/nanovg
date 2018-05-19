@@ -493,6 +493,12 @@ void nvgPathWinding(NVGcontext* ctx, int dir);
 // Angles are specified in radians.
 void nvgArc(NVGcontext* ctx, float cx, float cy, float r, float a0, float a1, int dir);
 
+// Creates a single segment of a cubic Non-Uniform Rational B-Spline from the current point.
+// This is like nvgBezierTo but with the addition of weights. Can be used to render general
+// cubic NURBS after all knots are fully inserted to maximum multiplicity.
+// w0 is the weight of the current point.
+void nvgCubicNurbsTo(NVGcontext* ctx, float c1x, float c1y, float c2x, float c2y, float x, float y, float w0, float w1, float w2, float w3);
+
 // Creates new rectangle shaped sub-path.
 void nvgRect(NVGcontext* ctx, float x, float y, float w, float h);
 
