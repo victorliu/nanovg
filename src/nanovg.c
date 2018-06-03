@@ -2312,12 +2312,16 @@ void nvgRoundedRectVarying(NVGcontext* ctx, float x, float y, float w, float h, 
 
 void nvgEllipse(NVGcontext* ctx, float cx, float cy, float rx, float ry)
 {
+	const float r2 = sqrtf(2.f);
+	const float w2 = (1.f/3.f) + r2/3.f;
+	float tx = rx * (2.f-r2);
+	float ty = ry * (2.f-r2);
 	float vals[] = {
-		NVG_MOVETO, cx-rx, cy,
-		NVG_BEZIERTO, cx-rx, cy+ry*NVG_KAPPA90, cx-rx*NVG_KAPPA90, cy+ry, cx, cy+ry,
-		NVG_BEZIERTO, cx+rx*NVG_KAPPA90, cy+ry, cx+rx, cy+ry*NVG_KAPPA90, cx+rx, cy,
-		NVG_BEZIERTO, cx+rx, cy-ry*NVG_KAPPA90, cx+rx*NVG_KAPPA90, cy-ry, cx, cy-ry,
-		NVG_BEZIERTO, cx-rx*NVG_KAPPA90, cy-ry, cx-rx, cy-ry*NVG_KAPPA90, cx-rx, cy,
+		NVG_MOVETO, cx+rx, cy,
+		NVG_CNURBSTO, cx+rx, cy+ty, cx+tx, cy+ry, cx, cy+ry, 1.f, w2, w2, 1.f,
+		NVG_CNURBSTO, cx-tx, cy+ry, cx-rx, cy+ty, cx-rx, cy, 1.f, w2, w2, 1.f,
+		NVG_CNURBSTO, cx-rx, cy-ty, cx-tx, cy-ry, cx, cy-ry, 1.f, w2, w2, 1.f,
+		NVG_CNURBSTO, cx+tx, cy-ry, cx+rx, cy-ty, cx+rx, cy, 1.f, w2, w2, 1.f,
 		NVG_CLOSE
 	};
 	nvg__appendCommands(ctx, vals, NVG_COUNTOF(vals));
